@@ -2,9 +2,11 @@ App = {
   web3Provider: null,
   contracts: {},
   account: '0x0',
+  ownerApp: '0x0',
   hasVoted: false,
-
+  //hasDeposited: false,
   init: function() {
+    
     return App.initWeb3();
   },
 
@@ -31,8 +33,45 @@ App = {
 
       App.listenForEvents();
 
+      //test
+      App.contracts.Election.deployed().then(function(instance) {
+        electionInstance = instance;
+        //return electionInstance.initDeposit();
+        return electionInstance.owner();
+      }).then(function(owner){
+        App.ownerApp = owner;
+        return electionInstance.initDeposit();
+      }).then(function(initDeposit){
+        if(initDeposit != true){
+          if(App.ownerApp == App.account){
+            return electionInstance.depositContract(2, {from:App.account, value:web3.toWei(10,'ether')});
+          }
+        }
+      })
+
+      //.then(function(initDeposit){
+
+      //   console.log(initDeposit);
+
+      //   if(initDeposit == true){
+      //     return '';
+      //   }else{
+      //     //App.ownerApp = owner;
+      //     return electionInstance.owner();
+      //   }
+      // }).then(function(owner){
+      //     if(owner != '') App.ownerApp = owner;
+      //     if(App.ownerApp == App.account){
+      //       return electionInstance.depositContract(2, {from:App.account, value:web3.toWei(10,'ether')});
+      //     }
+      // })
+      //return electionInstance.depositContract(2, {from:App.account, value:web3.toWei(10,'ether')});
+
+      //test
+
       return App.render();
     });
+
   },
 
   // Listen for events emitted from the contract
@@ -42,7 +81,7 @@ App = {
       // This is a known issue with Metamask
       // https://github.com/MetaMask/metamask-extension/issues/2393
       instance.votedEvent({}, {
-        fromBlock: 0,
+        fromBlock: 'latest',
         toBlock: 'latest'
       }).watch(function(error, event) {
         console.log("event triggered", event)
@@ -59,11 +98,13 @@ App = {
 
     loader.show();
     content.hide();
+    $("#lol").hide();
 
     // Load account data
     web3.eth.getCoinbase(function(err, account) {
       if (err === null) {
         App.account = account;
+ 
         $("#accountAddress").html("Your Account: " + account);
       }
     });
@@ -80,6 +121,7 @@ App = {
       candidatesSelect.empty();
 
       for (var i = 1; i <= candidatesCount; i++) {
+
         electionInstance.candidates(i).then(function(candidate) {
           var id = candidate[0];
           var name = candidate[1];
@@ -94,12 +136,40 @@ App = {
           candidatesSelect.append(candidateOption);
         });
       }
+      //return electionInstance.buyCollectible(2, {from:App.account, value:web3.toWei(1,'ether')});
+      return electionInstance.getBalance();
+    })
+    // .then(function(){
+    //   return electionInstance.getBalance();
+    // })
+    .then(function(balances) {
+      $("#accountTokens").html("Smart Contract Balance (Wei) : " + balances);
+      return electionInstance.voterPpls(App.account);
+    }).then(function(acc) {
+      $("#Thanks").html("Thank you, " + acc + " for Voting <br>");
+
+      return electionInstance.paymentVal();
+    }).then(function(paymentVal){
+      $("#Thanks").append(paymentVal/(10**18) + " ETH has been deposited to your address");
+
       return electionInstance.voters(App.account);
     }).then(function(hasVoted) {
       // Do not allow a user to vote
       if(hasVoted) {
         $('form').hide();
+        $("#lol").show();
       }
+
+    App.contracts.Election.deployed().then(function(instance){
+      return instance.owner();
+    }).then(function(owner){
+      if(owner == App.account){
+        $("#lol").hide();
+        $('form').hide();
+        $("#accountAddress").empty;
+        $("#accountAddress").html("You are the creator of this Smart Contract. <br> Your Account: " + owner);
+      }
+    })
       loader.hide();
       content.show();
     }).catch(function(error) {
@@ -109,8 +179,15 @@ App = {
 
   castVote: function() {
     var candidateId = $('#candidatesSelect').val();
-    App.contracts.Election.deployed().then(function(instance) {
-      return instance.vote(candidateId, { from: App.account });
+    var voterId = $('#voterID').val();
+    
+    App.contracts.Election.deployed()
+    // .then(function(instance){
+    //   electionInstance = instance;
+    //   return electionInstance.addVoters(voterId, { from: App.account });
+    // })
+    .then(function(instance) {
+      return instance.vote(candidateId, voterId, { from: App.account });
     }).then(function(result) {
       // Wait for votes to update
       $("#content").hide();
@@ -119,6 +196,7 @@ App = {
       console.error(err);
     });
   }
+
 };
 
 $(function() {
